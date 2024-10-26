@@ -19,7 +19,8 @@ func main() {
 	calculatorClient := services.NewCalculatorClient(cc)
 	calculatorService := services.NewCalculatorService(calculatorClient)
 
-	err = calculatorService.Hello("Keattisak")
+	// err = calculatorService.Hello("Keattisak")
+	err = calculatorService.Fibonacci(6)
 	if err != nil {
 		log.Fatal(err)
 	}

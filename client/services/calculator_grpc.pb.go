@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Calculator_Hello_FullMethodName = "/service.Calculator/Hello"
+	Calculator_Hello_FullMethodName     = "/service.Calculator/Hello"
+	Calculator_Fibonacci_FullMethodName = "/service.Calculator/Fibonacci"
 )
 
 // CalculatorClient is the client API for Calculator service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CalculatorClient interface {
 	Hello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloResponse, error)
+	Fibonacci(ctx context.Context, in *FibonacciRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FibonacciResponse], error)
 }
 
 type calculatorClient struct {
@@ -47,11 +49,31 @@ func (c *calculatorClient) Hello(ctx context.Context, in *HelloRequest, opts ...
 	return out, nil
 }
 
+func (c *calculatorClient) Fibonacci(ctx context.Context, in *FibonacciRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FibonacciResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Calculator_ServiceDesc.Streams[0], Calculator_Fibonacci_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[FibonacciRequest, FibonacciResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Calculator_FibonacciClient = grpc.ServerStreamingClient[FibonacciResponse]
+
 // CalculatorServer is the server API for Calculator service.
 // All implementations must embed UnimplementedCalculatorServer
 // for forward compatibility.
 type CalculatorServer interface {
 	Hello(context.Context, *HelloRequest) (*HelloResponse, error)
+	Fibonacci(*FibonacciRequest, grpc.ServerStreamingServer[FibonacciResponse]) error
 	mustEmbedUnimplementedCalculatorServer()
 }
 
@@ -64,6 +86,9 @@ type UnimplementedCalculatorServer struct{}
 
 func (UnimplementedCalculatorServer) Hello(context.Context, *HelloRequest) (*HelloResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Hello not implemented")
+}
+func (UnimplementedCalculatorServer) Fibonacci(*FibonacciRequest, grpc.ServerStreamingServer[FibonacciResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method Fibonacci not implemented")
 }
 func (UnimplementedCalculatorServer) mustEmbedUnimplementedCalculatorServer() {}
 func (UnimplementedCalculatorServer) testEmbeddedByValue()                    {}
@@ -104,6 +129,17 @@ func _Calculator_Hello_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Calculator_Fibonacci_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(FibonacciRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(CalculatorServer).Fibonacci(m, &grpc.GenericServerStream[FibonacciRequest, FibonacciResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Calculator_FibonacciServer = grpc.ServerStreamingServer[FibonacciResponse]
+
 // Calculator_ServiceDesc is the grpc.ServiceDesc for Calculator service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -116,6 +152,12 @@ var Calculator_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Calculator_Hello_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Fibonacci",
+			Handler:       _Calculator_Fibonacci_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "calculator.proto",
 }
