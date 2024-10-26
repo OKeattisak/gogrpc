@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Calculator_Hello_FullMethodName     = "/service.Calculator/Hello"
 	Calculator_Fibonacci_FullMethodName = "/service.Calculator/Fibonacci"
+	Calculator_Average_FullMethodName   = "/service.Calculator/Average"
 )
 
 // CalculatorClient is the client API for Calculator service.
@@ -29,6 +30,7 @@ const (
 type CalculatorClient interface {
 	Hello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloResponse, error)
 	Fibonacci(ctx context.Context, in *FibonacciRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FibonacciResponse], error)
+	Average(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AverageRequest, AverageResponse], error)
 }
 
 type calculatorClient struct {
@@ -68,12 +70,26 @@ func (c *calculatorClient) Fibonacci(ctx context.Context, in *FibonacciRequest, 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Calculator_FibonacciClient = grpc.ServerStreamingClient[FibonacciResponse]
 
+func (c *calculatorClient) Average(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AverageRequest, AverageResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Calculator_ServiceDesc.Streams[1], Calculator_Average_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AverageRequest, AverageResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Calculator_AverageClient = grpc.ClientStreamingClient[AverageRequest, AverageResponse]
+
 // CalculatorServer is the server API for Calculator service.
 // All implementations must embed UnimplementedCalculatorServer
 // for forward compatibility.
 type CalculatorServer interface {
 	Hello(context.Context, *HelloRequest) (*HelloResponse, error)
 	Fibonacci(*FibonacciRequest, grpc.ServerStreamingServer[FibonacciResponse]) error
+	Average(grpc.ClientStreamingServer[AverageRequest, AverageResponse]) error
 	mustEmbedUnimplementedCalculatorServer()
 }
 
@@ -89,6 +105,9 @@ func (UnimplementedCalculatorServer) Hello(context.Context, *HelloRequest) (*Hel
 }
 func (UnimplementedCalculatorServer) Fibonacci(*FibonacciRequest, grpc.ServerStreamingServer[FibonacciResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method Fibonacci not implemented")
+}
+func (UnimplementedCalculatorServer) Average(grpc.ClientStreamingServer[AverageRequest, AverageResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method Average not implemented")
 }
 func (UnimplementedCalculatorServer) mustEmbedUnimplementedCalculatorServer() {}
 func (UnimplementedCalculatorServer) testEmbeddedByValue()                    {}
@@ -140,6 +159,13 @@ func _Calculator_Fibonacci_Handler(srv interface{}, stream grpc.ServerStream) er
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Calculator_FibonacciServer = grpc.ServerStreamingServer[FibonacciResponse]
 
+func _Calculator_Average_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(CalculatorServer).Average(&grpc.GenericServerStream[AverageRequest, AverageResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Calculator_AverageServer = grpc.ClientStreamingServer[AverageRequest, AverageResponse]
+
 // Calculator_ServiceDesc is the grpc.ServiceDesc for Calculator service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -157,6 +183,11 @@ var Calculator_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "Fibonacci",
 			Handler:       _Calculator_Fibonacci_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "Average",
+			Handler:       _Calculator_Average_Handler,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "calculator.proto",

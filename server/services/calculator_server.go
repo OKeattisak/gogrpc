@@ -3,6 +3,7 @@ package services
 import (
 	context "context"
 	"fmt"
+	"io"
 	"time"
 
 	grpc "google.golang.org/grpc"
@@ -47,4 +48,29 @@ func fib(n uint32) uint32 {
 	default:
 		return fib(n-1) + fib(n-2)
 	}
+}
+
+func (calculatorServer) Average(stream grpc.ClientStreamingServer[AverageRequest, AverageResponse]) error {
+	sum := 0.0
+	count := 0.0
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return err
+		}
+
+		sum += req.Number
+		count++
+	}
+
+	res := AverageResponse{
+		Result: sum / count,
+	}
+
+	return stream.SendAndClose(&res)
 }
