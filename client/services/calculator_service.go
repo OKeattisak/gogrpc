@@ -13,6 +13,7 @@ type CalculatorService interface {
 	Hello(name string) error
 	Fibonacci(n uint32) error
 	Average(numbers ...float64) error
+	Sum(numbers ...int32) error
 }
 
 type calculatorService struct {
@@ -94,4 +95,49 @@ func (s calculatorService) Average(numbers ...float64) error {
 	}
 	fmt.Printf("Response : %v \n", res.Result)
 	return nil
+}
+
+func (s calculatorService) Sum(numbers ...int32) error {
+	stream, err := s.calculatorClient.Sum(context.Background())
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Service : Sum \n")
+	go func() {
+		for _, number := range numbers {
+			req := SumRequest{
+				Number: number,
+			}
+			stream.Send(&req)
+			fmt.Printf("Request : %v \n", req.Number)
+			time.Sleep(time.Second * 2)
+		}
+		stream.CloseSend()
+	}()
+
+	done := make(chan bool)
+	errs := make(chan error)
+
+	go func() {
+		for {
+			res, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+
+			if err != nil {
+				errs <- err
+			}
+			fmt.Printf("Response : %v \n", res.Result)
+		}
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case err := <-errs:
+		return err
+	}
 }

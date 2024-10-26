@@ -74,3 +74,29 @@ func (calculatorServer) Average(stream grpc.ClientStreamingServer[AverageRequest
 
 	return stream.SendAndClose(&res)
 }
+
+func (calculatorServer) Sum(stream grpc.BidiStreamingServer[SumRequest, SumResponse]) error {
+	sum := int32(0)
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return err
+		}
+
+		sum += req.Number
+		res := SumResponse{
+			Result: sum,
+		}
+		err = stream.Send(&res)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

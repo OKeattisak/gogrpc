@@ -22,6 +22,7 @@ const (
 	Calculator_Hello_FullMethodName     = "/service.Calculator/Hello"
 	Calculator_Fibonacci_FullMethodName = "/service.Calculator/Fibonacci"
 	Calculator_Average_FullMethodName   = "/service.Calculator/Average"
+	Calculator_Sum_FullMethodName       = "/service.Calculator/Sum"
 )
 
 // CalculatorClient is the client API for Calculator service.
@@ -31,6 +32,7 @@ type CalculatorClient interface {
 	Hello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloResponse, error)
 	Fibonacci(ctx context.Context, in *FibonacciRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FibonacciResponse], error)
 	Average(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AverageRequest, AverageResponse], error)
+	Sum(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SumRequest, SumResponse], error)
 }
 
 type calculatorClient struct {
@@ -83,6 +85,19 @@ func (c *calculatorClient) Average(ctx context.Context, opts ...grpc.CallOption)
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Calculator_AverageClient = grpc.ClientStreamingClient[AverageRequest, AverageResponse]
 
+func (c *calculatorClient) Sum(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SumRequest, SumResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Calculator_ServiceDesc.Streams[2], Calculator_Sum_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SumRequest, SumResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Calculator_SumClient = grpc.BidiStreamingClient[SumRequest, SumResponse]
+
 // CalculatorServer is the server API for Calculator service.
 // All implementations must embed UnimplementedCalculatorServer
 // for forward compatibility.
@@ -90,6 +105,7 @@ type CalculatorServer interface {
 	Hello(context.Context, *HelloRequest) (*HelloResponse, error)
 	Fibonacci(*FibonacciRequest, grpc.ServerStreamingServer[FibonacciResponse]) error
 	Average(grpc.ClientStreamingServer[AverageRequest, AverageResponse]) error
+	Sum(grpc.BidiStreamingServer[SumRequest, SumResponse]) error
 	mustEmbedUnimplementedCalculatorServer()
 }
 
@@ -108,6 +124,9 @@ func (UnimplementedCalculatorServer) Fibonacci(*FibonacciRequest, grpc.ServerStr
 }
 func (UnimplementedCalculatorServer) Average(grpc.ClientStreamingServer[AverageRequest, AverageResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method Average not implemented")
+}
+func (UnimplementedCalculatorServer) Sum(grpc.BidiStreamingServer[SumRequest, SumResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method Sum not implemented")
 }
 func (UnimplementedCalculatorServer) mustEmbedUnimplementedCalculatorServer() {}
 func (UnimplementedCalculatorServer) testEmbeddedByValue()                    {}
@@ -166,6 +185,13 @@ func _Calculator_Average_Handler(srv interface{}, stream grpc.ServerStream) erro
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Calculator_AverageServer = grpc.ClientStreamingServer[AverageRequest, AverageResponse]
 
+func _Calculator_Sum_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(CalculatorServer).Sum(&grpc.GenericServerStream[SumRequest, SumResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Calculator_SumServer = grpc.BidiStreamingServer[SumRequest, SumResponse]
+
 // Calculator_ServiceDesc is the grpc.ServiceDesc for Calculator service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -187,6 +213,12 @@ var Calculator_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Average",
 			Handler:       _Calculator_Average_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "Sum",
+			Handler:       _Calculator_Sum_Handler,
+			ServerStreams: true,
 			ClientStreams: true,
 		},
 	},
